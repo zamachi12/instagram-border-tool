@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instagram Border Tool</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #fff; --ink: #151515; --muted: #6b6b6b; --line: #e3e3df; --accent: #151515;
+    --checker: #d9d9d4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111; --panel: #1b1b1b; --ink: #f2f2f0; --muted: #9a9a96; --line: #2c2c2a; --accent: #f2f2f0; --checker: #2a2a28; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .app { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .grid { display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .field { margin-bottom: 18px; }
+  .field:last-child { margin-bottom: 0; }
+  label.t, .t { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+  select, button, input[type=number] { font: inherit; color: var(--ink); }
+  select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label { flex: 1; text-align: center; padding: 8px; cursor: pointer; }
+  .seg input:checked + label { background: var(--accent); color: var(--bg); }
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  button { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; color: var(--muted); cursor: pointer; }
+  .drop.over { border-color: var(--accent); color: var(--ink); }
+  .stage { display: flex; justify-content: center; padding: 16px;
+    background: repeating-conic-gradient(var(--checker) 0 25%, transparent 0 50%) 0 0/16px 16px; border-radius: 8px; }
+  canvas { max-width: 100%; max-height: 70vh; height: auto; box-shadow: 0 0 0 1px rgba(128,128,128,.6), 0 2px 16px rgba(0,0,0,.2); cursor: grab; touch-action: none; }
+  canvas.dragging { cursor: grabbing; }
+  .empty { color: var(--muted); padding: 80px 0; }
+  .math { margin-top: 14px; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
+  .math b { color: var(--ink); font-weight: 600; }
+  .actions { display: flex; gap: 8px; }
+  .actions > * { flex: 1; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Instagram Border Tool</h1>
+  <p class="sub">Fit any photo onto an Instagram canvas with clean, even borders.</p>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="field">
+        <span class="t">Photo</span>
+        <label class="drop" id="drop" for="file" style="display:block">Click, drop or paste an image<br><small>JPG, PNG, WebP</small></label>
+        <input type="file" id="file" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0">
+        <div class="hint" id="srcInfo"></div>
+      </div>
+
+      <div class="field">
+        <label class="t" for="ratio">Aspect ratio</label>
+        <select id="ratio">
+          <option value="4:3">4:3 — 1080 × 1080</option>
+          <option value="16:9">16:9 — 1080 × 608</option>
+          <option value="9:16" selected>9:16 — 1080 × 1350</option>
+        </select>
+        <div class="hint">Sizes follow the spec's Instagram presets (the "9:16" preset is Instagram's 4:5 portrait).</div>
+      </div>
+
+      <div class="field">
+        <span class="t">Border color</span>
+        <div class="seg">
+          <input type="radio" name="color" id="cw" value="#FFFFFF" checked><label for="cw">White</label>
+          <input type="radio" name="color" id="cb" value="#000000"><label for="cb">Black</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="t">Fit mode</span>
+        <div class="seg">
+          <input type="radio" name="mode" id="me" value="even" checked><label for="me">Even borders</label>
+          <input type="radio" name="mode" id="ml" value="full"><label for="ml">Full photo</label>
+        </div>
+        <div class="hint">Even = same border on all 4 sides (photo is cropped to fit). Full = nothing cropped, borders can differ.</div>
+      </div>
+
+      <div class="field">
+        <div class="row"><label class="t" for="scale" style="margin:0">Photo scale</label><span id="scaleVal">100%</span></div>
+        <input type="range" id="scale" min="50" max="200" value="100" step="1">
+        <div class="hint">Larger scale = thinner border. Drag the preview to reposition.</div>
+      </div>
+
+      <div class="field">
+        <span class="t">Export</span>
+        <div class="seg" style="margin-bottom:10px">
+          <input type="radio" name="fmt" id="fpng" value="png" checked><label for="fpng">PNG</label>
+          <input type="radio" name="fmt" id="fjpg" value="jpg"><label for="fjpg">JPG</label>
+        </div>
+        <div class="actions">
+          <button id="reset" disabled>Reset</button>
+          <button id="download" class="primary" disabled>Download</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="stage"><canvas id="cv" width="1080" height="1350" hidden></canvas><div class="empty" id="empty">Upload a photo to start</div></div>
+      <div class="math" id="math"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SIZES = { "4:3": [1080, 1080], "16:9": [1080, 608], "9:16": [1080, 1350] };
+const $ = id => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d");
+let img = null, name = "photo", offX = 0, offY = 0; // offsets in canvas px from centered
+
+const state = () => ({
+  ratio: $("ratio").value,
+  color: document.querySelector('input[name=color]:checked').value,
+  scale: $("scale").value / 100,
+  mode: document.querySelector('input[name=mode]:checked').value,
+  fmt: document.querySelector('input[name=fmt]:checked').value,
+});
+
+function layout() {
+  const s = state(), [cw, ch] = SIZES[s.ratio];
+  const m = Math.round(Math.min(cw, ch) * 0.06); // base border at 100%
+  const W = img.naturalWidth, H = img.naturalHeight;
+  if (s.mode === "even") {
+    // one border b on all four sides; photo covers the inner frame (cropped to fit)
+    const b = Math.max(0, m * (2 - s.scale));
+    const fw = cw - 2 * b, fh = ch - 2 * b;
+    const fit = Math.max(fw / W, fh / H);
+    const w = W * fit, h = H * fit;
+    offX = Math.max(-(w - fw) / 2, Math.min((w - fw) / 2, offX));
+    offY = Math.max(-(h - fh) / 2, Math.min((h - fh) / 2, offY));
+    return { s, cw, ch, m, b, fit, w, h, fw, fh, x: b + (fw - w) / 2 + offX, y: b + (fh - h) / 2 + offY };
+  }
+  const fit = Math.min((cw - 2 * m) / W, (ch - 2 * m) / H);
+  const w = W * fit * s.scale, h = H * fit * s.scale;
+  return { s, cw, ch, m, fit, w, h, x: (cw - w) / 2 + offX, y: (ch - h) / 2 + offY };
+}
+
+function render() {
+  if (!img) return;
+  const L = layout();
+  cv.width = L.cw; cv.height = L.ch;
+  ctx.fillStyle = L.s.color;
+  ctx.fillRect(0, 0, L.cw, L.ch);
+  ctx.imageSmoothingQuality = "high";
+  ctx.save();
+  if (L.s.mode === "even") { ctx.beginPath(); ctx.rect(L.b, L.b, L.fw, L.fh); ctx.clip(); }
+  ctx.drawImage(img, L.x, L.y, L.w, L.h);
+  ctx.restore();
+
+  const px = v => Math.round(v * 10) / 10;
+  let html;
+  if (L.s.mode === "even") {
+    html = `Canvas <b>${L.cw} × ${L.ch}px</b> · Photo area <b>${Math.round(L.fw)} × ${Math.round(L.fh)}px</b><br>` +
+      `Border (all 4 sides): <b>${px(L.b)}px</b> = ${L.m} × (2 − ${Math.round(L.s.scale * 100)}%)<br>` +
+      `Photo is cropped to fill the inner frame. Drag to choose the crop.`;
+  } else {
+    const left = px(L.x), right = px(L.cw - L.x - L.w), top = px(L.y), bottom = px(L.ch - L.y - L.h);
+    html = `Canvas <b>${L.cw} × ${L.ch}px</b> · Photo <b>${Math.round(L.w)} × ${Math.round(L.h)}px</b><br>` +
+      `fit = min((${L.cw}−2×${L.m})/${img.naturalWidth}, (${L.ch}−2×${L.m})/${img.naturalHeight}) = ${L.fit.toFixed(4)} · scale = ${Math.round(L.s.scale * 100)}%<br>` +
+      `Border L/R: <b>${left} / ${right}px</b> · T/B: <b>${top} / ${bottom}px</b> (full photo, so sides and top can differ)`;
+    if ([left, right, top, bottom].some(v => v < 0)) html += `<br>Negative border = photo is cropped by the canvas edge.`;
+  }
+  $("math").innerHTML = html;
+}
+
+function load(file) {
+  if (!file) return;
+  if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp)$/i.test(file.name)) {
+    $("srcInfo").textContent = "Unsupported file type. Use JPG, PNG or WebP."; return;
+  }
+  const url = URL.createObjectURL(file), im = new Image();
+  im.onerror = () => { $("srcInfo").textContent = "Couldn't read that image (HEIC isn't supported — export as JPG)."; };
+  im.onload = () => {
+    img = im; name = (file.name || "photo").replace(/\.[^.]+$/, "") || "photo";
+    $("srcInfo").textContent = `${file.name || "pasted image"} — ${im.naturalWidth} × ${im.naturalHeight}px`;
+    cv.hidden = false; $("empty").hidden = true;
+    $("download").disabled = $("reset").disabled = false;
+    offX = offY = 0; render();
+  };
+  im.src = url;
+}
+
+// upload
+const drop = $("drop"), file = $("file");
+file.onchange = () => { load(file.files[0]); file.value = ""; };
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); load(e.dataTransfer.files[0]); };
+window.addEventListener("dragover", e => e.preventDefault());
+window.addEventListener("drop", e => { e.preventDefault(); load(e.dataTransfer.files[0]); });
+window.addEventListener("paste", e => { const f = [...e.clipboardData.files][0]; if (f) load(f); });
+
+// controls
+$("scale").oninput = () => { $("scaleVal").textContent = $("scale").value + "%"; render(); };
+$("ratio").onchange = () => { offX = offY = 0; render(); };
+document.querySelectorAll('input[name=color]').forEach(r => r.onchange = render);
+document.querySelectorAll('input[name=mode]').forEach(r => r.onchange = () => { offX = offY = 0; render(); });
+$("reset").onclick = () => { $("scale").value = 100; $("scaleVal").textContent = "100%"; offX = offY = 0; render(); };
+
+// drag to reposition
+let drag = null;
+cv.onpointerdown = e => { if (!img) return; cv.setPointerCapture(e.pointerId); cv.classList.add("dragging"); drag = { x: e.clientX, y: e.clientY, ox: offX, oy: offY }; };
+cv.onpointermove = e => {
+  if (!drag) return;
+  const k = cv.width / cv.getBoundingClientRect().width; // screen px → canvas px
+  offX = drag.ox + (e.clientX - drag.x) * k; offY = drag.oy + (e.clientY - drag.y) * k;
+  render();
+};
+cv.onpointerup = cv.onpointercancel = () => { drag = null; cv.classList.remove("dragging"); };
+
+// export
+$("download").onclick = () => {
+  const { fmt } = state(), type = fmt === "png" ? "image/png" : "image/jpeg";
+  cv.toBlob(b => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(b); a.download = `${name}_bordered.${fmt}`;
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, type, 0.95);
+};
+</script>
+</body>
+</html>
