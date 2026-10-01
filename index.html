@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Instagram Border Tool</title>
 <style>
   :root {
@@ -12,30 +13,30 @@
   @media (prefers-color-scheme: dark) {
     :root { --bg: #111; --panel: #1b1b1b; --ink: #f2f2f0; --muted: #9a9a96; --line: #2c2c2a; --accent: #f2f2f0; --checker: #2a2a28; }
   }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  .app { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
+  .app { max-width: 1100px; margin: 0 auto; padding: 24px max(16px, env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
   h1 { font-size: 20px; margin: 0 0 4px; }
   .sub { color: var(--muted); margin: 0 0 20px; }
   .grid { display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; }
-  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } .has .preview { order: -1; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
   .field { margin-bottom: 18px; }
   .field:last-child { margin-bottom: 0; }
   label.t, .t { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
-  select, button, input[type=number] { font: inherit; color: var(--ink); }
-  select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+  select, button { font: inherit; color: var(--ink); }
+  select { width: 100%; padding: 10px; font-size: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
   .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .seg input { position: absolute; opacity: 0; pointer-events: none; }
-  .seg label { flex: 1; text-align: center; padding: 8px; cursor: pointer; }
+  .seg label { flex: 1; text-align: center; padding: 10px 8px; cursor: pointer; }
   .seg input:checked + label { background: var(--accent); color: var(--bg); }
   .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
-  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 32px; }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  button { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+  button { padding: 11px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
   button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
   button:disabled { opacity: .4; cursor: not-allowed; }
-  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; color: var(--muted); cursor: pointer; }
+  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; color: var(--muted); cursor: pointer; display: block; }
   .drop.over { border-color: var(--accent); color: var(--ink); }
   .stage { display: flex; justify-content: center; padding: 16px;
     background: repeating-conic-gradient(var(--checker) 0 25%, transparent 0 50%) 0 0/16px 16px; border-radius: 8px; }
@@ -47,19 +48,27 @@
   .actions { display: flex; gap: 8px; }
   .actions > * { flex: 1; }
   .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .strip { display: flex; gap: 8px; overflow-x: auto; padding: 12px 2px 4px; -webkit-overflow-scrolling: touch; }
+  .strip:empty { display: none; }
+  .thumb { position: relative; flex: 0 0 auto; width: 64px; height: 64px; padding: 0; border: 2px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--checker); }
+  .thumb.sel { border-color: var(--accent); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .x { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,.7); color: #fff; font-size: 14px; line-height: 20px; text-align: center; }
+  .thumb .n { position: absolute; left: 3px; bottom: 2px; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 3px #000; }
+  #status { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 1.4em; }
 </style>
 </head>
 <body>
 <div class="app">
   <h1>Instagram Border Tool</h1>
-  <p class="sub">Fit any photo onto an Instagram canvas with clean, even borders.</p>
+  <p class="sub">Fit photos onto an Instagram canvas with clean, even borders — one or a whole batch.</p>
 
   <div class="grid">
     <div class="panel">
       <div class="field">
-        <span class="t">Photo</span>
-        <label class="drop" id="drop" for="file" style="display:block">Click, drop or paste an image<br><small>JPG, PNG, WebP</small></label>
-        <input type="file" id="file" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0">
+        <span class="t">Photos</span>
+        <label class="drop" id="drop" for="file">Tap, drop or paste images<br><small>JPG, PNG, WebP, HEIC — select as many as you like</small></label>
+        <input type="file" id="file" accept="image/*" multiple style="position:absolute;width:1px;height:1px;opacity:0">
         <div class="hint" id="srcInfo"></div>
       </div>
 
@@ -93,7 +102,7 @@
       <div class="field">
         <div class="row"><label class="t" for="scale" style="margin:0">Photo scale</label><span id="scaleVal">100%</span></div>
         <input type="range" id="scale" min="50" max="200" value="100" step="1">
-        <div class="hint">Larger scale = thinner border. Drag the preview to reposition.</div>
+        <div class="hint">Larger scale = thinner border. Settings apply to every photo; drag the preview to reposition each one.</div>
       </div>
 
       <div class="field">
@@ -106,11 +115,13 @@
           <button id="reset" disabled>Reset</button>
           <button id="download" class="primary" disabled>Download</button>
         </div>
+        <div id="status" role="status"></div>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="stage"><canvas id="cv" width="1080" height="1350" hidden></canvas><div class="empty" id="empty">Upload a photo to start</div></div>
+    <div class="panel preview">
+      <div class="stage"><canvas id="cv" width="1080" height="1350" hidden></canvas><div class="empty" id="empty">Add photos to start</div></div>
+      <div class="strip" id="strip"></div>
       <div class="math" id="math"></div>
     </div>
   </div>
@@ -120,46 +131,67 @@
 const SIZES = { "4:3": [1080, 1080], "16:9": [1080, 608], "9:16": [1080, 1350] };
 const $ = id => document.getElementById(id);
 const cv = $("cv"), ctx = cv.getContext("2d");
-let img = null, name = "photo", offX = 0, offY = 0; // offsets in canvas px from centered
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+let items = [];   // { file, name, thumb, ox, oy }
+let cur = -1;     // selected index
+let img = null;   // decoded image for the selected item only (keeps memory low on phones)
+let prepared = null; // File[] built for batch sharing
 
 const state = () => ({
   ratio: $("ratio").value,
   color: document.querySelector('input[name=color]:checked').value,
-  scale: $("scale").value / 100,
   mode: document.querySelector('input[name=mode]:checked').value,
+  scale: $("scale").value / 100,
   fmt: document.querySelector('input[name=fmt]:checked').value,
 });
 
-function layout() {
-  const s = state(), [cw, ch] = SIZES[s.ratio];
+// decode a File into an <img>; revoke the object URL once loaded
+function decode(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => { URL.revokeObjectURL(url); res(im); };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error("decode")); };
+    im.src = url;
+  });
+}
+
+// pure layout: returns draw rect + clamped offsets
+function layout(im, s, ox, oy) {
+  const [cw, ch] = SIZES[s.ratio];
   const m = Math.round(Math.min(cw, ch) * 0.06); // base border at 100%
-  const W = img.naturalWidth, H = img.naturalHeight;
+  const W = im.naturalWidth, H = im.naturalHeight;
   if (s.mode === "even") {
     // one border b on all four sides; photo covers the inner frame (cropped to fit)
     const b = Math.max(0, m * (2 - s.scale));
     const fw = cw - 2 * b, fh = ch - 2 * b;
     const fit = Math.max(fw / W, fh / H);
     const w = W * fit, h = H * fit;
-    offX = Math.max(-(w - fw) / 2, Math.min((w - fw) / 2, offX));
-    offY = Math.max(-(h - fh) / 2, Math.min((h - fh) / 2, offY));
-    return { s, cw, ch, m, b, fit, w, h, fw, fh, x: b + (fw - w) / 2 + offX, y: b + (fh - h) / 2 + offY };
+    ox = Math.max(-(w - fw) / 2, Math.min((w - fw) / 2, ox));
+    oy = Math.max(-(h - fh) / 2, Math.min((h - fh) / 2, oy));
+    return { s, cw, ch, m, b, fit, w, h, fw, fh, ox, oy, x: b + (fw - w) / 2 + ox, y: b + (fh - h) / 2 + oy };
   }
   const fit = Math.min((cw - 2 * m) / W, (ch - 2 * m) / H);
   const w = W * fit * s.scale, h = H * fit * s.scale;
-  return { s, cw, ch, m, fit, w, h, x: (cw - w) / 2 + offX, y: (ch - h) / 2 + offY };
+  return { s, cw, ch, m, fit, w, h, ox, oy, x: (cw - w) / 2 + ox, y: (ch - h) / 2 + oy };
+}
+
+function paint(c, x, im, L) {
+  c.width = L.cw; c.height = L.ch;
+  x.fillStyle = L.s.color;
+  x.fillRect(0, 0, L.cw, L.ch);
+  x.imageSmoothingQuality = "high";
+  x.save();
+  if (L.s.mode === "even") { x.beginPath(); x.rect(L.b, L.b, L.fw, L.fh); x.clip(); }
+  x.drawImage(im, L.x, L.y, L.w, L.h);
+  x.restore();
 }
 
 function render() {
   if (!img) return;
-  const L = layout();
-  cv.width = L.cw; cv.height = L.ch;
-  ctx.fillStyle = L.s.color;
-  ctx.fillRect(0, 0, L.cw, L.ch);
-  ctx.imageSmoothingQuality = "high";
-  ctx.save();
-  if (L.s.mode === "even") { ctx.beginPath(); ctx.rect(L.b, L.b, L.fw, L.fh); ctx.clip(); }
-  ctx.drawImage(img, L.x, L.y, L.w, L.h);
-  ctx.restore();
+  const it = items[cur], L = layout(img, state(), it.ox, it.oy);
+  it.ox = L.ox; it.oy = L.oy;
+  paint(cv, ctx, img, L);
 
   const px = v => Math.round(v * 10) / 10;
   let html;
@@ -177,68 +209,158 @@ function render() {
   $("math").innerHTML = html;
 }
 
-function load(file) {
-  if (!file) return;
-  if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp)$/i.test(file.name)) {
-    $("srcInfo").textContent = "Unsupported file type. Use JPG, PNG or WebP."; return;
+// any change that affects output invalidates a prepared batch
+function changed() { prepared = null; updateUI(); render(); }
+
+function setStatus(t) { $("status").textContent = t || ""; }
+
+function updateUI() {
+  const n = items.length, has = n > 0;
+  document.body.classList.toggle("has", has);
+  $("reset").disabled = !has;
+  $("download").disabled = !has;
+  $("srcInfo").textContent = has ? `${n} photo${n > 1 ? "s" : ""} · selected: ${items[cur].file.name || "pasted image"} (${img ? img.naturalWidth + " × " + img.naturalHeight : "…"})` : "";
+  const verb = isIOS && navigator.canShare ? "Save to Photos" : "Download";
+  $("download").textContent = n > 1 ? (prepared ? `${verb} (${n})` : `Prepare ${n} images`) : verb;
+  renderStrip();
+}
+
+function renderStrip() {
+  const strip = $("strip");
+  strip.textContent = "";
+  if (items.length < 2) return;
+  items.forEach((it, i) => {
+    const b = document.createElement("button");
+    b.className = "thumb" + (i === cur ? " sel" : "");
+    b.setAttribute("aria-label", `Photo ${i + 1}`);
+    b.innerHTML = `<img alt=""><span class="n">${i + 1}</span><span class="x" role="button" aria-label="Remove">×</span>`;
+    b.firstChild.src = it.thumb;
+    b.onclick = e => { e.target.classList.contains("x") ? remove(i) : select(i); };
+    strip.appendChild(b);
+  });
+}
+
+async function select(i) {
+  cur = i;
+  try { img = await decode(items[i].file); } catch { img = null; setStatus("Couldn't read that image."); return; }
+  updateUI(); render();
+}
+
+function remove(i) {
+  items.splice(i, 1);
+  prepared = null;
+  if (!items.length) { cur = -1; img = null; cv.hidden = true; $("empty").hidden = false; $("math").textContent = ""; updateUI(); return; }
+  select(Math.min(cur > i ? cur - 1 : cur, items.length - 1));
+}
+
+async function addFiles(list) {
+  const files = [...list].filter(f => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
+  if (!files.length) { setStatus("Unsupported file type. Use JPG, PNG, WebP or HEIC."); return; }
+  setStatus(`Loading ${files.length}…`);
+  let bad = 0;
+  for (const file of files) {
+    try {
+      const im = await decode(file);
+      const t = document.createElement("canvas"), k = 128 / Math.max(im.naturalWidth, im.naturalHeight);
+      t.width = Math.round(im.naturalWidth * k); t.height = Math.round(im.naturalHeight * k);
+      t.getContext("2d").drawImage(im, 0, 0, t.width, t.height);
+      items.push({ file, name: (file.name || "photo").replace(/\.[^.]+$/, "") || "photo", thumb: t.toDataURL("image/jpeg", .7), ox: 0, oy: 0 });
+    } catch { bad++; }
   }
-  const url = URL.createObjectURL(file), im = new Image();
-  im.onerror = () => { $("srcInfo").textContent = "Couldn't read that image (HEIC isn't supported — export as JPG)."; };
-  im.onload = () => {
-    img = im; name = (file.name || "photo").replace(/\.[^.]+$/, "") || "photo";
-    $("srcInfo").textContent = `${file.name || "pasted image"} — ${im.naturalWidth} × ${im.naturalHeight}px`;
-    cv.hidden = false; $("empty").hidden = true;
-    $("download").disabled = $("reset").disabled = false;
-    offX = offY = 0; render();
-  };
-  im.src = url;
+  setStatus(bad ? `${bad} file${bad > 1 ? "s" : ""} couldn't be read (browser can't decode that format).` : "");
+  prepared = null;
+  if (!items.length) return;
+  cv.hidden = false; $("empty").hidden = true;
+  if (cur < 0) await select(0); else updateUI();
 }
 
 // upload
 const drop = $("drop"), file = $("file");
-file.onchange = () => { load(file.files[0]); file.value = ""; };
+file.onchange = () => { const fs = [...file.files]; file.value = ""; addFiles(fs); };
 drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
 drop.ondragleave = () => drop.classList.remove("over");
-drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); load(e.dataTransfer.files[0]); };
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); addFiles(e.dataTransfer.files); };
 window.addEventListener("dragover", e => e.preventDefault());
-window.addEventListener("drop", e => { e.preventDefault(); load(e.dataTransfer.files[0]); });
-window.addEventListener("paste", e => { const f = [...e.clipboardData.files][0]; if (f) load(f); });
+window.addEventListener("drop", e => { e.preventDefault(); addFiles(e.dataTransfer.files); });
+window.addEventListener("paste", e => { const fs = [...e.clipboardData.files]; if (fs.length) addFiles(fs); });
 
 // controls
-$("scale").oninput = () => { $("scaleVal").textContent = $("scale").value + "%"; render(); };
-$("ratio").onchange = () => { offX = offY = 0; render(); };
-document.querySelectorAll('input[name=color]').forEach(r => r.onchange = render);
-document.querySelectorAll('input[name=mode]').forEach(r => r.onchange = () => { offX = offY = 0; render(); });
-$("reset").onclick = () => { $("scale").value = 100; $("scaleVal").textContent = "100%"; offX = offY = 0; render(); };
+$("scale").oninput = () => { $("scaleVal").textContent = $("scale").value + "%"; changed(); };
+$("ratio").onchange = () => { items.forEach(it => it.ox = it.oy = 0); changed(); };
+document.querySelectorAll('input[name=color], input[name=fmt]').forEach(r => r.onchange = changed);
+document.querySelectorAll('input[name=mode]').forEach(r => r.onchange = () => { items.forEach(it => it.ox = it.oy = 0); changed(); });
+$("reset").onclick = () => { $("scale").value = 100; $("scaleVal").textContent = "100%"; items.forEach(it => it.ox = it.oy = 0); changed(); };
 
-// drag to reposition
+// drag to reposition (mouse + touch)
 let drag = null;
-cv.onpointerdown = e => { if (!img) return; cv.setPointerCapture(e.pointerId); cv.classList.add("dragging"); drag = { x: e.clientX, y: e.clientY, ox: offX, oy: offY }; };
+cv.onpointerdown = e => { if (!img) return; cv.setPointerCapture(e.pointerId); cv.classList.add("dragging"); drag = { x: e.clientX, y: e.clientY, ox: items[cur].ox, oy: items[cur].oy }; };
 cv.onpointermove = e => {
   if (!drag) return;
   const k = cv.width / cv.getBoundingClientRect().width; // screen px → canvas px
-  offX = drag.ox + (e.clientX - drag.x) * k; offY = drag.oy + (e.clientY - drag.y) * k;
+  items[cur].ox = drag.ox + (e.clientX - drag.x) * k; items[cur].oy = drag.oy + (e.clientY - drag.y) * k;
+  prepared = null;
   render();
 };
-cv.onpointerup = cv.onpointercancel = () => { drag = null; cv.classList.remove("dragging"); };
+cv.onpointerup = cv.onpointercancel = () => { if (drag) { drag = null; cv.classList.remove("dragging"); updateUI(); } };
 
 // export
-const canShareFiles = f => navigator.canShare && navigator.share && navigator.canShare({ files: [f] });
-if (canShareFiles(new File([""], "t.png", { type: "image/png" })) && /iPhone|iPad|iPod/.test(navigator.userAgent)) $("download").textContent = "Save to Photos";
+const mime = fmt => fmt === "png" ? "image/png" : "image/jpeg";
+const canShareFiles = fs => navigator.canShare && navigator.share && navigator.canShare({ files: fs });
+const toBlob = (c, type) => new Promise(r => c.toBlob(r, type, 0.95));
 
-$("download").onclick = () => {
-  const { fmt } = state(), type = fmt === "png" ? "image/png" : "image/jpeg", fname = `${name}_bordered.${fmt}`;
-  cv.toBlob(async b => {
-    const f = new File([b], fname, { type });
-    // iPhone/iPad: the share sheet offers "Save Image" -> Photos
-    if (canShareFiles(f)) {
-      try { await navigator.share({ files: [f] }); return; }
-      catch (e) { if (e.name === "AbortError") return; }
-    }
+async function shareOrDownload(files) {
+  // iPhone/iPad: the share sheet offers "Save Image" -> Photos
+  if (canShareFiles(files)) {
+    try { await navigator.share({ files }); return; }
+    catch (e) { if (e.name === "AbortError") return; }
+  }
+  for (const f of files) {
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(b); a.download = fname;
-    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  }, type, 0.95);
+    a.href = URL.createObjectURL(f); a.download = f.name;
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    await new Promise(r => setTimeout(r, 400));
+  }
+}
+
+// render every photo with the current settings, one at a time (low memory)
+async function buildAll() {
+  const s = state(), type = mime(s.fmt), out = [], c = document.createElement("canvas"), x = c.getContext("2d");
+  const used = {};
+  for (let i = 0; i < items.length; i++) {
+    setStatus(`Rendering ${i + 1} of ${items.length}…`);
+    const it = items[i], im = i === cur && img ? img : await decode(it.file);
+    paint(c, x, im, layout(im, s, it.ox, it.oy));
+    const blob = await toBlob(c, type);
+    used[it.name] = (used[it.name] || 0) + 1;
+    const nm = used[it.name] > 1 ? `${it.name}_${used[it.name]}` : it.name;
+    out.push(new File([blob], `${nm}_bordered.${s.fmt}`, { type }));
+    c.width = c.height = 1; // release canvas memory (iOS)
+  }
+  return out;
+}
+
+$("download").onclick = async () => {
+  const btn = $("download");
+  try {
+    if (items.length === 1) {
+      // single image: build + share inside the same tap
+      const [f] = await buildAll(); setStatus("");
+      await shareOrDownload([f]); return;
+    }
+    // batch: first tap renders, second tap shares (iOS needs a fresh tap for the share sheet)
+    if (!prepared) {
+      btn.disabled = true;
+      prepared = await buildAll();
+      setStatus(`${prepared.length} images ready.`);
+      btn.disabled = false; updateUI();
+      if (!isIOS) { await shareOrDownload(prepared); setStatus(""); }
+      return;
+    }
+    await shareOrDownload(prepared); setStatus("");
+  } catch (e) {
+    btn.disabled = false; prepared = null; updateUI();
+    setStatus("Export failed — try fewer images at once.");
+  }
 };
 </script>
 </body>
