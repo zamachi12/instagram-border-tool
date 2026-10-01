@@ -14,6 +14,7 @@
     :root { --bg: #111; --panel: #1b1b1b; --ink: #f2f2f0; --muted: #9a9a96; --line: #2c2c2a; --accent: #f2f2f0; --checker: #2a2a28; }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
   .app { max-width: 1100px; margin: 0 auto; padding: 24px max(16px, env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
   h1 { font-size: 20px; margin: 0 0 4px; }
@@ -33,6 +34,8 @@
   .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
   input[type=range] { width: 100%; accent-color: var(--accent); height: 32px; }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .check { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .check input { width: 20px; height: 20px; accent-color: var(--accent); }
   button { padding: 11px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
   button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
   button:disabled { opacity: .4; cursor: not-allowed; }
@@ -42,6 +45,7 @@
     background: repeating-conic-gradient(var(--checker) 0 25%, transparent 0 50%) 0 0/16px 16px; border-radius: 8px; }
   canvas { max-width: 100%; max-height: 70vh; height: auto; box-shadow: 0 0 0 1px rgba(128,128,128,.6), 0 2px 16px rgba(0,0,0,.2); cursor: grab; touch-action: none; }
   canvas.dragging { cursor: grabbing; }
+  canvas.nodrag { cursor: default; touch-action: auto; }
   .empty { color: var(--muted); padding: 80px 0; }
   .math { margin-top: 14px; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
   .math b { color: var(--ink); font-weight: 600; }
@@ -56,12 +60,14 @@
   .thumb .x { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,.7); color: #fff; font-size: 14px; line-height: 20px; text-align: center; }
   .thumb .n { position: absolute; left: 3px; bottom: 2px; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 3px #000; }
   #status { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 1.4em; }
+  #result { margin-top: 14px; text-align: center; }
+  #result video, #result img { max-width: 100%; max-height: 60vh; border-radius: 8px; background: #000; }
 </style>
 </head>
 <body>
 <div class="app">
   <h1>Instagram Border Tool</h1>
-  <p class="sub">Fit photos onto an Instagram canvas with clean, even borders — one or a whole batch.</p>
+  <p class="sub">Borders, collages and burst animations — one photo or a whole batch.</p>
 
   <div class="grid">
     <div class="panel">
@@ -70,6 +76,16 @@
         <label class="drop" id="drop" for="file">Tap, drop or paste images<br><small>JPG, PNG, WebP, HEIC — select as many as you like</small></label>
         <input type="file" id="file" accept="image/*" multiple style="position:absolute;width:1px;height:1px;opacity:0">
         <div class="hint" id="srcInfo"></div>
+      </div>
+
+      <div class="field">
+        <span class="t">Tool</span>
+        <div class="seg">
+          <input type="radio" name="tool" id="tb" value="borders" checked><label for="tb">Borders</label>
+          <input type="radio" name="tool" id="tc" value="collage"><label for="tc">Collage</label>
+          <input type="radio" name="tool" id="ta" value="anim"><label for="ta">Animation</label>
+        </div>
+        <div class="hint" id="toolHint"></div>
       </div>
 
       <div class="field">
@@ -90,7 +106,8 @@
         </div>
       </div>
 
-      <div class="field">
+      <!-- Borders + Animation -->
+      <div class="field" data-m="borders anim">
         <span class="t">Fit mode</span>
         <div class="seg">
           <input type="radio" name="mode" id="me" value="even" checked><label for="me">Even borders</label>
@@ -99,15 +116,62 @@
         <div class="hint">Even = same border on all 4 sides (photo is cropped to fit). Full = nothing cropped, borders can differ.</div>
       </div>
 
-      <div class="field">
+      <div class="field" data-m="borders anim">
         <div class="row"><label class="t" for="scale" style="margin:0">Photo scale</label><span id="scaleVal">100%</span></div>
         <input type="range" id="scale" min="50" max="200" value="100" step="1">
-        <div class="hint">Larger scale = thinner border. Settings apply to every photo; drag the preview to reposition each one.</div>
+        <div class="hint">Larger scale = thinner border. Settings apply to every photo; drag the preview to reposition.</div>
+      </div>
+
+      <!-- Collage -->
+      <div class="field" data-m="collage" hidden>
+        <label class="t" for="grid">Collage layout</label>
+        <select id="grid">
+          <option value="1x2">1 × 2</option><option value="2x1">2 × 1</option><option value="2x2">2 × 2</option>
+          <option value="1x3">1 × 3</option><option value="3x1">3 × 1</option><option value="2x3">2 × 3</option>
+          <option value="3x2">3 × 2</option><option value="3x3">3 × 3</option><option value="3x4" selected>3 × 4 (columns × rows)</option>
+          <option value="4x3">4 × 3</option>
+        </select>
+        <div class="hint">Photos fill cells in the order you added them. More photos than cells = extra collages.</div>
+      </div>
+      <div class="field" data-m="collage" hidden>
+        <div class="row"><label class="t" for="outer" style="margin:0">Outer border</label><span id="outerVal">40px</span></div>
+        <input type="range" id="outer" min="0" max="120" value="40">
+      </div>
+      <div class="field" data-m="collage" hidden>
+        <div class="row"><label class="t" for="gap" style="margin:0">Gap between photos</label><span id="gapVal">0px</span></div>
+        <input type="range" id="gap" min="0" max="40" value="0">
+      </div>
+      <div class="field" data-m="collage" hidden>
+        <div class="row"><label class="t" for="radius" style="margin:0">Corner radius</label><span id="radiusVal">6px</span></div>
+        <input type="range" id="radius" min="0" max="60" value="6">
+      </div>
+
+      <!-- Animation -->
+      <div class="field" data-m="anim" hidden>
+        <div class="row"><label class="t" for="fps" style="margin:0">Burst speed</label><span id="fpsVal">20 photos/sec</span></div>
+        <input type="range" id="fps" min="1" max="30" value="20">
+        <div class="hint">Set to your camera's burst rate (R5 = up to 20) for real-time playback.</div>
+      </div>
+      <div class="field" data-m="anim" hidden>
+        <div class="row"><label class="t" for="blend" style="margin:0">Smooth blend</label><span id="blendVal">1</span></div>
+        <input type="range" id="blend" min="0" max="4" value="1">
+        <div class="hint">Cross-fade frames inserted between each photo, so it plays like video. 0 = hard cuts.</div>
+      </div>
+      <div class="field" data-m="anim" hidden>
+        <label class="check"><input type="checkbox" id="boom"> Boomerang (forward, then back)</label>
+      </div>
+      <div class="field" data-m="anim" hidden>
+        <span class="t">Animation format</span>
+        <div class="seg">
+          <input type="radio" name="afmt" id="amp4" value="mp4" checked><label for="amp4">MP4 video</label>
+          <input type="radio" name="afmt" id="agif" value="gif"><label for="agif">GIF</label>
+        </div>
+        <div class="hint">MP4 keeps full 1080px quality and saves to Photos as a video. GIF is limited to 256 colors and is exported smaller (720px) — pick it only if you need a GIF file.</div>
       </div>
 
       <div class="field">
         <span class="t">Export</span>
-        <div class="seg" style="margin-bottom:10px">
+        <div class="seg" style="margin-bottom:10px" data-m="borders collage">
           <input type="radio" name="fmt" id="fpng" value="png" checked><label for="fpng">PNG</label>
           <input type="radio" name="fmt" id="fjpg" value="jpg"><label for="fjpg">JPG</label>
         </div>
@@ -123,6 +187,7 @@
       <div class="stage"><canvas id="cv" width="1080" height="1350" hidden></canvas><div class="empty" id="empty">Add photos to start</div></div>
       <div class="strip" id="strip"></div>
       <div class="math" id="math"></div>
+      <div id="result"></div>
     </div>
   </div>
 </div>
@@ -132,19 +197,31 @@ const SIZES = { "4:3": [1080, 1080], "16:9": [1080, 608], "9:16": [1080, 1350] }
 const $ = id => document.getElementById(id);
 const cv = $("cv"), ctx = cv.getContext("2d");
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const TOOL_HINTS = {
+  borders: "Add a clean border to each photo.",
+  collage: "Combine photos into a grid, like a mood board.",
+  anim: "Turn a burst sequence into a smooth video or GIF.",
+};
 
-let items = [];   // { file, name, thumb, ox, oy }
-let cur = -1;     // selected index
-let img = null;   // decoded image for the selected item only (keeps memory low on phones)
-let prepared = null; // File[] built for batch sharing
+let items = [];      // { file, name, thumb, ox, oy }
+let cur = -1;        // selected index
+let img = null;      // decoded working image for the selected item (kept small for phones)
+let prepared = null; // File[] built and waiting for the share/save tap
+let resultUrls = [];
+let rtoken = 0;      // cancels stale async previews
 
-const state = () => ({
-  ratio: $("ratio").value,
-  color: document.querySelector('input[name=color]:checked').value,
-  mode: document.querySelector('input[name=mode]:checked').value,
-  scale: $("scale").value / 100,
-  fmt: document.querySelector('input[name=fmt]:checked').value,
-});
+const radio = n => document.querySelector(`input[name=${n}]:checked`).value;
+const state = () => {
+  const [cols, rows] = $("grid").value.split("x").map(Number);
+  return {
+    tool: radio("tool"), ratio: $("ratio").value, color: radio("color"), mode: radio("mode"),
+    scale: $("scale").value / 100, fmt: radio("fmt"),
+    cols, rows, outer: +$("outer").value, gap: +$("gap").value, radius: +$("radius").value,
+    fps: +$("fps").value, blend: +$("blend").value, boom: $("boom").checked, afmt: radio("afmt"),
+  };
+};
+const dimsOf = im => [im.naturalWidth || im.width, im.naturalHeight || im.height];
+const closeImg = im => { try { im && im.close && im.close(); } catch {} };
 
 // decode a File into an <img>; revoke the object URL once loaded
 function decode(file) {
@@ -155,12 +232,19 @@ function decode(file) {
     im.src = url;
   });
 }
+// big camera files (e.g. 45MP R5 frames) are decoded straight to a smaller bitmap to save memory
+async function loadImg(file, w = 2160) {
+  if (window.createImageBitmap && file.size > 1.5e6) {
+    try { return await createImageBitmap(file, { resizeWidth: w, resizeQuality: "high" }); } catch {}
+  }
+  return decode(file);
+}
 
-// pure layout: returns draw rect + clamped offsets
+// ---------- Borders layout ----------
 function layout(im, s, ox, oy) {
   const [cw, ch] = SIZES[s.ratio];
   const m = Math.round(Math.min(cw, ch) * 0.06); // base border at 100%
-  const W = im.naturalWidth, H = im.naturalHeight;
+  const [W, H] = dimsOf(im);
   if (s.mode === "even") {
     // one border b on all four sides; photo covers the inner frame (cropped to fit)
     const b = Math.max(0, m * (2 - s.scale));
@@ -187,7 +271,40 @@ function paint(c, x, im, L) {
   x.restore();
 }
 
+// ---------- Collage ----------
+function collageGeom(s) {
+  const [cw, ch] = SIZES[s.ratio];
+  const cellW = (cw - 2 * s.outer - (s.cols - 1) * s.gap) / s.cols;
+  const cellH = (ch - 2 * s.outer - (s.rows - 1) * s.gap) / s.rows;
+  return { cw, ch, cellW, cellH, per: s.cols * s.rows };
+}
+function collageBegin(c, x, s) {
+  const g = collageGeom(s);
+  c.width = g.cw; c.height = g.ch;
+  x.fillStyle = s.color; x.fillRect(0, 0, g.cw, g.ch);
+  return g;
+}
+function roundedRect(x, px, py, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  x.beginPath();
+  x.moveTo(px + r, py); x.arcTo(px + w, py, px + w, py + h, r); x.arcTo(px + w, py + h, px, py + h, r);
+  x.arcTo(px, py + h, px, py, r); x.arcTo(px, py, px + w, py, r); x.closePath();
+}
+function collageCell(x, s, g, k, im) {
+  const col = k % s.cols, row = Math.floor(k / s.cols);
+  const px = s.outer + col * (g.cellW + s.gap), py = s.outer + row * (g.cellH + s.gap);
+  const [W, H] = dimsOf(im), sc = Math.max(g.cellW / W, g.cellH / H);
+  const dw = W * sc, dh = H * sc;
+  x.save();
+  roundedRect(x, px, py, g.cellW, g.cellH, s.radius); x.clip();
+  x.imageSmoothingQuality = "high";
+  x.drawImage(im, px + (g.cellW - dw) / 2, py + (g.cellH - dh) / 2, dw, dh);
+  x.restore();
+}
+
+// ---------- Preview ----------
 function render() {
+  if (state().tool === "collage") return renderCollage();
   if (!img) return;
   const it = items[cur], L = layout(img, state(), it.ox, it.oy);
   it.ox = L.ox; it.oy = L.oy;
@@ -200,28 +317,58 @@ function render() {
       `Border (all 4 sides): <b>${px(L.b)}px</b> = ${L.m} × (2 − ${Math.round(L.s.scale * 100)}%)<br>` +
       `Photo is cropped to fill the inner frame. Drag to choose the crop.`;
   } else {
+    const [W, H] = dimsOf(img);
     const left = px(L.x), right = px(L.cw - L.x - L.w), top = px(L.y), bottom = px(L.ch - L.y - L.h);
     html = `Canvas <b>${L.cw} × ${L.ch}px</b> · Photo <b>${Math.round(L.w)} × ${Math.round(L.h)}px</b><br>` +
-      `fit = min((${L.cw}−2×${L.m})/${img.naturalWidth}, (${L.ch}−2×${L.m})/${img.naturalHeight}) = ${L.fit.toFixed(4)} · scale = ${Math.round(L.s.scale * 100)}%<br>` +
+      `fit = min((${L.cw}−2×${L.m})/${W}, (${L.ch}−2×${L.m})/${H}) = ${L.fit.toFixed(4)} · scale = ${Math.round(L.s.scale * 100)}%<br>` +
       `Border L/R: <b>${left} / ${right}px</b> · T/B: <b>${top} / ${bottom}px</b> (full photo, so sides and top can differ)`;
     if ([left, right, top, bottom].some(v => v < 0)) html += `<br>Negative border = photo is cropped by the canvas edge.`;
   }
+  if (L.s.tool === "anim") html += `<br>Every frame of the animation uses these settings.`;
   $("math").innerHTML = html;
 }
 
-// any change that affects output invalidates a prepared batch
-function changed() { prepared = null; updateUI(); render(); }
+async function renderCollage() {
+  if (!items.length) return;
+  const s = state(), token = ++rtoken, g = collageGeom(s);
+  const page = Math.floor(cur / g.per), pages = Math.ceil(items.length / g.per);
+  collageBegin(cv, ctx, s);
+  $("math").innerHTML = `Canvas <b>${g.cw} × ${g.ch}px</b> · ${s.cols} × ${s.rows} cells of <b>${Math.round(g.cellW)} × ${Math.round(g.cellH)}px</b><br>` +
+    `Outer border <b>${s.outer}px</b> · gap <b>${s.gap}px</b> · ${items.length} photo${items.length > 1 ? "s" : ""} → <b>${pages}</b> collage${pages > 1 ? "s" : ""}` +
+    (pages > 1 ? ` (showing ${page + 1})` : "");
+  for (let k = 0; k < g.per; k++) {
+    const idx = page * g.per + k;
+    if (idx >= items.length) break;
+    let im;
+    try { im = await loadImg(items[idx].file, 900); } catch { continue; }
+    if (token !== rtoken) { closeImg(im); return; }
+    collageCell(ctx, s, g, k, im); closeImg(im);
+  }
+}
 
+function clearResult() { resultUrls.forEach(URL.revokeObjectURL); resultUrls = []; $("result").textContent = ""; }
+// any change that affects output invalidates a prepared export
+function changed() { prepared = null; clearResult(); updateUI(); render(); }
 function setStatus(t) { $("status").textContent = t || ""; }
 
 function updateUI() {
-  const n = items.length, has = n > 0;
+  const s = state(), n = items.length, has = n > 0;
   document.body.classList.toggle("has", has);
+  document.querySelectorAll("[data-m]").forEach(e => { e.hidden = !e.dataset.m.split(" ").includes(s.tool); });
+  $("toolHint").textContent = TOOL_HINTS[s.tool];
+  cv.classList.toggle("nodrag", s.tool === "collage");
   $("reset").disabled = !has;
   $("download").disabled = !has;
-  $("srcInfo").textContent = has ? `${n} photo${n > 1 ? "s" : ""} · selected: ${items[cur].file.name || "pasted image"} (${img ? img.naturalWidth + " × " + img.naturalHeight : "…"})` : "";
+  $("srcInfo").textContent = has ? `${n} photo${n > 1 ? "s" : ""} · selected: ${items[cur].file.name || "pasted image"}` : "";
+  $("scaleVal").textContent = $("scale").value + "%";
+  $("outerVal").textContent = s.outer + "px"; $("gapVal").textContent = s.gap + "px"; $("radiusVal").textContent = s.radius + "px";
+  $("fpsVal").textContent = s.fps + " photos/sec"; $("blendVal").textContent = s.blend;
   const verb = isIOS && navigator.canShare ? "Save to Photos" : "Download";
-  $("download").textContent = n > 1 ? (prepared ? `${verb} (${n})` : `Prepare ${n} images`) : verb;
+  let label = verb;
+  if (s.tool === "borders" && n > 1) label = prepared ? `${verb} (${n})` : `Prepare ${n} images`;
+  if (s.tool === "collage") label = prepared ? `${verb}${prepared.length > 1 ? ` (${prepared.length})` : ""}` : "Prepare collage";
+  if (s.tool === "anim") label = prepared ? verb : `Create ${s.afmt.toUpperCase()}`;
+  $("download").textContent = label;
   renderStrip();
 }
 
@@ -242,39 +389,42 @@ function renderStrip() {
 
 async function select(i) {
   cur = i;
-  try { img = await decode(items[i].file); } catch { img = null; setStatus("Couldn't read that image."); return; }
+  const old = img; img = null;
+  closeImg(old);
+  try { img = await loadImg(items[i].file); } catch { setStatus("Couldn't read that image."); return; }
   updateUI(); render();
 }
 
 function remove(i) {
   items.splice(i, 1);
-  prepared = null;
-  if (!items.length) { cur = -1; img = null; cv.hidden = true; $("empty").hidden = false; $("math").textContent = ""; updateUI(); return; }
+  prepared = null; clearResult();
+  if (!items.length) { cur = -1; closeImg(img); img = null; cv.hidden = true; $("empty").hidden = false; $("math").textContent = ""; updateUI(); return; }
   select(Math.min(cur > i ? cur - 1 : cur, items.length - 1));
 }
 
 async function addFiles(list) {
   const files = [...list].filter(f => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
   if (!files.length) { setStatus("Unsupported file type. Use JPG, PNG, WebP or HEIC."); return; }
-  setStatus(`Loading ${files.length}…`);
-  let bad = 0;
+  let bad = 0, done = 0;
   for (const file of files) {
+    setStatus(`Loading ${++done} of ${files.length}…`);
     try {
-      const im = await decode(file);
-      const t = document.createElement("canvas"), k = 128 / Math.max(im.naturalWidth, im.naturalHeight);
-      t.width = Math.round(im.naturalWidth * k); t.height = Math.round(im.naturalHeight * k);
+      const im = await loadImg(file, 256);
+      const [W, H] = dimsOf(im), t = document.createElement("canvas"), k = 128 / Math.max(W, H);
+      t.width = Math.max(1, Math.round(W * k)); t.height = Math.max(1, Math.round(H * k));
       t.getContext("2d").drawImage(im, 0, 0, t.width, t.height);
+      closeImg(im);
       items.push({ file, name: (file.name || "photo").replace(/\.[^.]+$/, "") || "photo", thumb: t.toDataURL("image/jpeg", .7), ox: 0, oy: 0 });
     } catch { bad++; }
   }
   setStatus(bad ? `${bad} file${bad > 1 ? "s" : ""} couldn't be read (browser can't decode that format).` : "");
-  prepared = null;
+  prepared = null; clearResult();
   if (!items.length) return;
   cv.hidden = false; $("empty").hidden = true;
-  if (cur < 0) await select(0); else updateUI();
+  if (cur < 0) await select(0); else { updateUI(); render(); }
 }
 
-// upload
+// ---------- Upload ----------
 const drop = $("drop"), file = $("file");
 file.onchange = () => { const fs = [...file.files]; file.value = ""; addFiles(fs); };
 drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
@@ -284,16 +434,22 @@ window.addEventListener("dragover", e => e.preventDefault());
 window.addEventListener("drop", e => { e.preventDefault(); addFiles(e.dataTransfer.files); });
 window.addEventListener("paste", e => { const fs = [...e.clipboardData.files]; if (fs.length) addFiles(fs); });
 
-// controls
-$("scale").oninput = () => { $("scaleVal").textContent = $("scale").value + "%"; changed(); };
-$("ratio").onchange = () => { items.forEach(it => it.ox = it.oy = 0); changed(); };
-document.querySelectorAll('input[name=color], input[name=fmt]').forEach(r => r.onchange = changed);
-document.querySelectorAll('input[name=mode]').forEach(r => r.onchange = () => { items.forEach(it => it.ox = it.oy = 0); changed(); });
-$("reset").onclick = () => { $("scale").value = 100; $("scaleVal").textContent = "100%"; items.forEach(it => it.ox = it.oy = 0); changed(); };
+// ---------- Controls ----------
+const resetOffsets = () => items.forEach(it => it.ox = it.oy = 0);
+["scale", "outer", "gap", "radius", "fps", "blend"].forEach(id => $(id).oninput = changed);
+["grid", "boom"].forEach(id => $(id).onchange = changed);
+$("ratio").onchange = () => { resetOffsets(); changed(); };
+document.querySelectorAll("input[name=color], input[name=fmt], input[name=afmt], input[name=tool]").forEach(r => r.onchange = changed);
+document.querySelectorAll("input[name=mode]").forEach(r => r.onchange = () => { resetOffsets(); changed(); });
+$("reset").onclick = () => { $("scale").value = 100; resetOffsets(); changed(); };
 
 // drag to reposition (mouse + touch)
 let drag = null;
-cv.onpointerdown = e => { if (!img) return; cv.setPointerCapture(e.pointerId); cv.classList.add("dragging"); drag = { x: e.clientX, y: e.clientY, ox: items[cur].ox, oy: items[cur].oy }; };
+cv.onpointerdown = e => {
+  if (!img || state().tool === "collage") return;
+  cv.setPointerCapture(e.pointerId); cv.classList.add("dragging");
+  drag = { x: e.clientX, y: e.clientY, ox: items[cur].ox, oy: items[cur].oy };
+};
 cv.onpointermove = e => {
   if (!drag) return;
   const k = cv.width / cv.getBoundingClientRect().width; // screen px → canvas px
@@ -301,15 +457,17 @@ cv.onpointermove = e => {
   prepared = null;
   render();
 };
-cv.onpointerup = cv.onpointercancel = () => { if (drag) { drag = null; cv.classList.remove("dragging"); updateUI(); } };
+cv.onpointerup = cv.onpointercancel = () => { if (drag) { drag = null; cv.classList.remove("dragging"); clearResult(); updateUI(); } };
 
-// export
+// ---------- Export ----------
 const mime = fmt => fmt === "png" ? "image/png" : "image/jpeg";
 const canShareFiles = fs => navigator.canShare && navigator.share && navigator.canShare({ files: fs });
-const toBlob = (c, type) => new Promise(r => c.toBlob(r, type, 0.95));
+const toBlob = (c, type, q = 0.95) => new Promise(r => c.toBlob(r, type, q));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const natCompare = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" }).compare;
 
 async function shareOrDownload(files) {
-  // iPhone/iPad: the share sheet offers "Save Image" -> Photos
+  // iPhone/iPad: the share sheet offers "Save Image" / "Save Video" -> Photos
   if (canShareFiles(files)) {
     try { await navigator.share({ files }); return; }
     catch (e) { if (e.name === "AbortError") return; }
@@ -318,18 +476,19 @@ async function shareOrDownload(files) {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(f); a.download = f.name;
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    await new Promise(r => setTimeout(r, 400));
+    await sleep(400);
   }
 }
 
-// render every photo with the current settings, one at a time (low memory)
-async function buildAll() {
+// Borders: render every photo, one at a time (low memory)
+async function buildBorders() {
   const s = state(), type = mime(s.fmt), out = [], c = document.createElement("canvas"), x = c.getContext("2d");
   const used = {};
   for (let i = 0; i < items.length; i++) {
     setStatus(`Rendering ${i + 1} of ${items.length}…`);
-    const it = items[i], im = i === cur && img ? img : await decode(it.file);
+    const it = items[i], im = i === cur && img ? img : await loadImg(it.file);
     paint(c, x, im, layout(im, s, it.ox, it.oy));
+    if (im !== img) closeImg(im);
     const blob = await toBlob(c, type);
     used[it.name] = (used[it.name] || 0) + 1;
     const nm = used[it.name] > 1 ? `${it.name}_${used[it.name]}` : it.name;
@@ -339,19 +498,156 @@ async function buildAll() {
   return out;
 }
 
+// Collage: one image per page of cols × rows photos
+async function buildCollages() {
+  const s = state(), type = mime(s.fmt), g = collageGeom(s), out = [];
+  const pages = Math.ceil(items.length / g.per), c = document.createElement("canvas"), x = c.getContext("2d");
+  for (let p = 0; p < pages; p++) {
+    collageBegin(c, x, s);
+    for (let k = 0; k < g.per; k++) {
+      const idx = p * g.per + k;
+      if (idx >= items.length) break;
+      setStatus(`Collage ${p + 1} of ${pages} — photo ${k + 1} of ${Math.min(g.per, items.length - p * g.per)}…`);
+      const im = await loadImg(items[idx].file);
+      collageCell(x, s, g, k, im); closeImg(im);
+    }
+    const blob = await toBlob(c, type);
+    out.push(new File([blob], `collage${pages > 1 ? "_" + (p + 1) : ""}.${s.fmt}`, { type }));
+  }
+  return out;
+}
+
+// Animation: burst frames -> cross-faded video (MP4 via WebCodecs) or GIF
+async function buildAnim() {
+  const s = state();
+  if (items.length < 2) throw new Error("Add at least 2 photos for an animation.");
+  const files = items.map(it => ({ it, i: items.indexOf(it) })).sort((a, b) => natCompare(a.it.file.name, b.it.file.name));
+  const off = items[cur] || items[0];
+  const isGif = s.afmt === "gif";
+
+  if (!isGif && !(window.VideoEncoder && window.VideoFrame)) throw new Error("This browser can't make MP4 — use GIF, or open this page in Safari or Chrome.");
+
+  // output size (GIF is scaled down to keep file size sane)
+  let [cw, ch] = SIZES[s.ratio];
+  if (isGif) { const k = 720 / cw; cw = Math.round(cw * k / 2) * 2; ch = Math.round(ch * k / 2) * 2; }
+  const so = { ...s, ratio: s.ratio };
+  const scaleK = cw / SIZES[s.ratio][0];
+
+  // timing
+  const cap = isGif ? 25 : 60;
+  let steps = s.blend;
+  if (s.fps * (steps + 1) > cap) steps = Math.max(0, Math.floor(cap / s.fps) - 1);
+  const outFps = s.fps * (steps + 1);
+
+  // Stage 1: decode each burst frame, apply border/crop, keep as a high-quality JPEG (low memory)
+  const fc = document.createElement("canvas"), fx = fc.getContext("2d");
+  const blobs = [];
+  for (let k = 0; k < files.length; k++) {
+    setStatus(`Preparing frame ${k + 1} of ${files.length}…`);
+    const im = await loadImg(files[k].it.file);
+    const L = layout(im, so, off.ox, off.oy);
+    paint(fc, fx, im, L);
+    closeImg(im);
+    blobs.push(await toBlob(fc, "image/jpeg", 0.97));
+  }
+  const order = blobs.map((_, k) => k);
+  if (s.boom) for (let k = blobs.length - 2; k >= 1; k--) order.push(k);
+
+  // Stage 2: stream frames (with cross-fades) into the encoder
+  const A = document.createElement("canvas"), B = document.createElement("canvas"), M = document.createElement("canvas");
+  [A, B, M].forEach(c => { c.width = cw; c.height = ch; });
+  const ax = A.getContext("2d"), bx = B.getContext("2d"), mx = M.getContext("2d", { willReadFrequently: isGif });
+  const drawTo = async (x, blob) => {
+    const bm = await createImageBitmap(blob);
+    x.imageSmoothingQuality = "high"; x.drawImage(bm, 0, 0, cw, ch); closeImg(bm);
+  };
+
+  let emit, finish, frameNo = 0;
+  const total = (order.length - 1) * (steps + 1) + 1;
+  if (isGif) {
+    const { GIFEncoder, quantize, applyPalette } = await import("https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js");
+    const gif = GIFEncoder(), delay = Math.round(1000 / outFps);
+    emit = async c => {
+      const d = c.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, cw, ch).data;
+      const pal = quantize(d, 256);
+      gif.writeFrame(applyPalette(d, pal), cw, ch, { palette: pal, delay, repeat: 0 });
+    };
+    finish = () => { gif.finish(); return new File([gif.bytes()], `${files[0].it.name}_burst.gif`, { type: "image/gif" }); };
+  } else {
+    if (!window.Mp4Muxer) await new Promise((res, rej) => {
+      const sc = document.createElement("script");
+      sc.src = "https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.min.js";
+      sc.onload = res; sc.onerror = () => rej(new Error("Couldn't load the video encoder (are you online?)")); document.head.appendChild(sc);
+    });
+    const bitrate = Math.min(60e6, Math.round(cw * ch * outFps * 0.5));
+    let cfg = null;
+    for (const codec of ["avc1.64002A", "avc1.4D402A", "avc1.42E02A"]) {
+      const c = { codec, width: cw, height: ch, bitrate, framerate: outFps };
+      try { if ((await VideoEncoder.isConfigSupported(c)).supported) { cfg = c; break; } } catch {}
+    }
+    if (!cfg) throw new Error("This browser can't encode H.264 video — try GIF instead.");
+    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: "avc", width: cw, height: ch }, fastStart: "in-memory" });
+    let encErr = null;
+    const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { encErr = e; } });
+    enc.configure(cfg);
+    emit = async c => {
+      if (encErr) throw encErr;
+      while (enc.encodeQueueSize > 6) await sleep(5);
+      const f = new VideoFrame(c, { timestamp: Math.round(frameNo * 1e6 / outFps), duration: Math.round(1e6 / outFps) });
+      enc.encode(f, { keyFrame: frameNo % Math.round(outFps * 2) === 0 }); f.close();
+    };
+    finish = async () => {
+      await enc.flush(); if (encErr) throw encErr; muxer.finalize();
+      return new File([muxer.target.buffer], `${files[0].it.name}_burst.mp4`, { type: "video/mp4" });
+    };
+  }
+
+  const bump = async c => { await emit(c); frameNo++; if (frameNo % 4 === 0) setStatus(`Encoding frame ${frameNo} of ${total}…`); };
+  await drawTo(ax, blobs[order[0]]);
+  await bump(A);
+  let prev = [A, ax], next = [B, bx];
+  for (let p = 1; p < order.length; p++) {
+    await drawTo(next[1], blobs[order[p]]);
+    for (let k = 1; k <= steps; k++) {
+      mx.globalAlpha = 1; mx.drawImage(prev[0], 0, 0);
+      mx.globalAlpha = k / (steps + 1); mx.drawImage(next[0], 0, 0); mx.globalAlpha = 1;
+      await bump(M);
+    }
+    await bump(next[0]);
+    [prev, next] = [next, prev];
+  }
+  setStatus("Finishing…");
+  return [await finish()];
+}
+
+function showResult(files) {
+  clearResult();
+  const f = files[0];
+  if (state().tool !== "anim" || !f) return;
+  const url = URL.createObjectURL(f); resultUrls.push(url);
+  let el;
+  if (f.type === "video/mp4") { el = document.createElement("video"); el.controls = el.loop = el.muted = el.autoplay = el.playsInline = true; }
+  else el = document.createElement("img");
+  el.src = url; $("result").appendChild(el);
+  const info = document.createElement("div"); info.className = "hint";
+  info.textContent = `${f.name} · ${(f.size / 1048576).toFixed(1)} MB`; $("result").appendChild(info);
+}
+
 $("download").onclick = async () => {
-  const btn = $("download");
+  const btn = $("download"), s = state();
   try {
-    if (items.length === 1) {
+    if (s.tool === "borders" && items.length === 1) {
       // single image: build + share inside the same tap
-      const [f] = await buildAll(); setStatus("");
+      const [f] = await buildBorders(); setStatus("");
       await shareOrDownload([f]); return;
     }
-    // batch: first tap renders, second tap shares (iOS needs a fresh tap for the share sheet)
+    // everything else: first tap renders, second tap shares (iOS needs a fresh tap for the share sheet)
     if (!prepared) {
       btn.disabled = true;
-      prepared = await buildAll();
-      setStatus(`${prepared.length} images ready.`);
+      const builder = { borders: buildBorders, collage: buildCollages, anim: buildAnim }[s.tool];
+      prepared = await builder();
+      showResult(prepared);
+      setStatus(`${prepared.length} file${prepared.length > 1 ? "s" : ""} ready.`);
       btn.disabled = false; updateUI();
       if (!isIOS) { await shareOrDownload(prepared); setStatus(""); }
       return;
@@ -359,9 +655,11 @@ $("download").onclick = async () => {
     await shareOrDownload(prepared); setStatus("");
   } catch (e) {
     btn.disabled = false; prepared = null; updateUI();
-    setStatus("Export failed — try fewer images at once.");
+    setStatus(e && e.message && !/^(decode|Failed)/.test(e.message) ? e.message : "Export failed — try fewer or smaller images.");
   }
 };
+
+updateUI();
 </script>
 </body>
 </html>
