@@ -223,11 +223,20 @@ cv.onpointermove = e => {
 cv.onpointerup = cv.onpointercancel = () => { drag = null; cv.classList.remove("dragging"); };
 
 // export
+const canShareFiles = f => navigator.canShare && navigator.share && navigator.canShare({ files: [f] });
+if (canShareFiles(new File([""], "t.png", { type: "image/png" })) && /iPhone|iPad|iPod/.test(navigator.userAgent)) $("download").textContent = "Save to Photos";
+
 $("download").onclick = () => {
-  const { fmt } = state(), type = fmt === "png" ? "image/png" : "image/jpeg";
-  cv.toBlob(b => {
+  const { fmt } = state(), type = fmt === "png" ? "image/png" : "image/jpeg", fname = `${name}_bordered.${fmt}`;
+  cv.toBlob(async b => {
+    const f = new File([b], fname, { type });
+    // iPhone/iPad: the share sheet offers "Save Image" -> Photos
+    if (canShareFiles(f)) {
+      try { await navigator.share({ files: [f] }); return; }
+      catch (e) { if (e.name === "AbortError") return; }
+    }
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(b); a.download = `${name}_bordered.${fmt}`;
+    a.href = URL.createObjectURL(b); a.download = fname;
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }, type, 0.95);
 };
