@@ -84,8 +84,34 @@
           <input type="radio" name="tool" id="tb" value="borders" checked><label for="tb">Borders</label>
           <input type="radio" name="tool" id="tc" value="collage"><label for="tc">Collage</label>
           <input type="radio" name="tool" id="ta" value="anim"><label for="ta">Animation</label>
+          <input type="radio" name="tool" id="ts" value="stack"><label for="ts">Stack</label>
         </div>
         <div class="hint" id="toolHint"></div>
+      </div>
+
+      <!-- Stack -->
+      <div class="field" data-m="stack" hidden>
+        <span class="t">Photo pool</span>
+        <label class="drop" for="folder">Choose a folder<br><small>3 photos are picked at random from it</small></label>
+        <input type="file" id="folder" webkitdirectory multiple style="position:absolute;width:1px;height:1px;opacity:0">
+        <div class="hint" id="poolInfo">Or add photos above — the stack picks from those.</div>
+      </div>
+      <div class="field" data-m="stack" hidden>
+        <span class="t">Stack direction</span>
+        <div class="seg">
+          <input type="radio" name="sdir" id="sdr" value="rows" checked><label for="sdr">Stacked</label>
+          <input type="radio" name="sdir" id="sdc" value="cols"><label for="sdc">Side by side</label>
+        </div>
+      </div>
+      <div class="field" data-m="stack" hidden>
+        <label class="t" for="scount">How many stacks</label>
+        <select id="scount">
+          <option value="1" selected>1</option><option value="3">3</option><option value="5">5</option><option value="10">10</option>
+        </select>
+        <div class="hint">Each stack gets 3 different photos. Photos aren't reused until the whole pool has been used.</div>
+      </div>
+      <div class="field" data-m="stack" hidden>
+        <button id="shuffle" style="width:100%" disabled>Shuffle photos</button>
       </div>
 
       <div class="field">
@@ -133,15 +159,15 @@
         </select>
         <div class="hint">Photos fill cells in the order you added them. More photos than cells = extra collages.</div>
       </div>
-      <div class="field" data-m="collage" hidden>
+      <div class="field" data-m="collage stack" hidden>
         <div class="row"><label class="t" for="outer" style="margin:0">Outer border</label><span id="outerVal">40px</span></div>
         <input type="range" id="outer" min="0" max="120" value="40">
       </div>
-      <div class="field" data-m="collage" hidden>
+      <div class="field" data-m="collage stack" hidden>
         <div class="row"><label class="t" for="gap" style="margin:0">Gap between photos</label><span id="gapVal">0px</span></div>
         <input type="range" id="gap" min="0" max="40" value="0">
       </div>
-      <div class="field" data-m="collage" hidden>
+      <div class="field" data-m="collage stack" hidden>
         <div class="row"><label class="t" for="radius" style="margin:0">Corner radius</label><span id="radiusVal">6px</span></div>
         <input type="range" id="radius" min="0" max="60" value="6">
       </div>
@@ -171,7 +197,7 @@
 
       <div class="field">
         <span class="t">Export</span>
-        <div class="seg" style="margin-bottom:10px" data-m="borders collage">
+        <div class="seg" style="margin-bottom:10px" data-m="borders collage stack">
           <input type="radio" name="fmt" id="fpng" value="png" checked><label for="fpng">PNG</label>
           <input type="radio" name="fmt" id="fjpg" value="jpg"><label for="fjpg">JPG</label>
         </div>
@@ -201,7 +227,13 @@ const TOOL_HINTS = {
   borders: "Add a clean border to each photo.",
   collage: "Combine photos into a grid, like a mood board.",
   anim: "Turn a burst sequence into a smooth video or GIF.",
+  stack: "Pick 3 random photos and stack them into one post.",
 };
+const isImage = f => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name);
+
+let folderFiles = []; // Stack pool chosen with "Choose a folder" (not decoded up front)
+let picks = [];       // the 3 Files in the current stack preview
+let deck = [];        // shuffled pool; stacks deal from it so photos don't repeat until it runs out
 
 let items = [];      // { file, name, thumb, ox, oy }
 let cur = -1;        // selected index
@@ -212,7 +244,8 @@ let rtoken = 0;      // cancels stale async previews
 
 const radio = n => document.querySelector(`input[name=${n}]:checked`).value;
 const state = () => {
-  const [cols, rows] = $("grid").value.split("x").map(Number);
+  let [cols, rows] = $("grid").value.split("x").map(Number);
+  if (radio("tool") === "stack") [cols, rows] = radio("sdir") === "rows" ? [1, 3] : [3, 1];
   return {
     tool: radio("tool"), ratio: $("ratio").value, color: radio("color"), mode: radio("mode"),
     scale: $("scale").value / 100, fmt: radio("fmt"),
@@ -290,7 +323,7 @@ function roundedRect(x, px, py, w, h, r) {
   x.moveTo(px + r, py); x.arcTo(px + w, py, px + w, py + h, r); x.arcTo(px + w, py + h, px, py + h, r);
   x.arcTo(px, py + h, px, py, r); x.arcTo(px, py, px + w, py, r); x.closePath();
 }
-function collageCell(x, s, g, k, im) {
+function collageCell(x, s, g, k, im, ay = 0.5) {
   const col = k % s.cols, row = Math.floor(k / s.cols);
   const px = s.outer + col * (g.cellW + s.gap), py = s.outer + row * (g.cellH + s.gap);
   const [W, H] = dimsOf(im), sc = Math.max(g.cellW / W, g.cellH / H);
@@ -298,12 +331,47 @@ function collageCell(x, s, g, k, im) {
   x.save();
   roundedRect(x, px, py, g.cellW, g.cellH, s.radius); x.clip();
   x.imageSmoothingQuality = "high";
-  x.drawImage(im, px + (g.cellW - dw) / 2, py + (g.cellH - dh) / 2, dw, dh);
+  x.drawImage(im, px + (g.cellW - dw) / 2, py + (g.cellH - dh) * ay, dw, dh);
   x.restore();
 }
 
 // ---------- Preview ----------
+// ---------- Stack ----------
+const pool = () => folderFiles.length ? folderFiles : items.map(it => it.file);
+function shuffled(a) {
+  a = a.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function deal() {
+  const p = pool();
+  if (p.length < 3) return [];
+  if (deck.length < 3) deck = shuffled(p);
+  return deck.splice(0, 3);
+}
+function newStack() { picks = deal(); changed(); }
+
+async function renderStack() {
+  const s = state(), token = ++rtoken, g = collageGeom(s);
+  if (picks.length < 3) {
+    cv.hidden = true; $("empty").hidden = false;
+    $("empty").textContent = pool().length ? "Need at least 3 photos for a stack" : "Choose a folder or add photos to start";
+    $("math").textContent = ""; return;
+  }
+  cv.hidden = false; $("empty").hidden = true;
+  collageBegin(cv, ctx, s);
+  $("math").innerHTML = `Canvas <b>${g.cw} × ${g.ch}px</b> · 3 panels of <b>${Math.round(g.cellW)} × ${Math.round(g.cellH)}px</b><br>` +
+    `Picked from ${pool().length} photos: ${picks.map(f => f.name).join(", ")}`;
+  for (let k = 0; k < 3; k++) {
+    let im;
+    try { im = await loadImg(picks[k], 1200); } catch { continue; }
+    if (token !== rtoken) { closeImg(im); return; }
+    collageCell(ctx, s, g, k, im, 0.35); closeImg(im);
+  }
+}
+
 function render() {
+  if (state().tool === "stack") return renderStack();
   if (state().tool === "collage") return renderCollage();
   if (!img) return;
   const it = items[cur], L = layout(img, state(), it.ox, it.oy);
@@ -352,13 +420,16 @@ function changed() { prepared = null; clearResult(); updateUI(); render(); }
 function setStatus(t) { $("status").textContent = t || ""; }
 
 function updateUI() {
-  const s = state(), n = items.length, has = n > 0;
-  document.body.classList.toggle("has", has);
+  const s = state(), n = items.length, has = n > 0, isStack = s.tool === "stack";
+  document.body.classList.toggle("has", has || (isStack && picks.length === 3));
   document.querySelectorAll("[data-m]").forEach(e => { e.hidden = !e.dataset.m.split(" ").includes(s.tool); });
   $("toolHint").textContent = TOOL_HINTS[s.tool];
-  cv.classList.toggle("nodrag", s.tool === "collage");
+  cv.classList.toggle("nodrag", s.tool === "collage" || isStack);
   $("reset").disabled = !has;
-  $("download").disabled = !has;
+  $("download").disabled = isStack ? picks.length < 3 : !has;
+  $("shuffle").disabled = pool().length < 3;
+  if (!isStack) { $("empty").textContent = "Add photos to start"; if (!has) { cv.hidden = true; $("empty").hidden = false; } }
+  $("poolInfo").textContent = folderFiles.length ? `${folderFiles.length} photos in the folder pool.` : "Or add photos above — the stack picks from those.";
   $("srcInfo").textContent = has ? `${n} photo${n > 1 ? "s" : ""} · selected: ${items[cur].file.name || "pasted image"}` : "";
   $("scaleVal").textContent = $("scale").value + "%";
   $("outerVal").textContent = s.outer + "px"; $("gapVal").textContent = s.gap + "px"; $("radiusVal").textContent = s.radius + "px";
@@ -368,6 +439,7 @@ function updateUI() {
   if (s.tool === "borders" && n > 1) label = prepared ? `${verb} (${n})` : `Prepare ${n} images`;
   if (s.tool === "collage") label = prepared ? `${verb}${prepared.length > 1 ? ` (${prepared.length})` : ""}` : "Prepare collage";
   if (s.tool === "anim") label = prepared ? verb : `Create ${s.afmt.toUpperCase()}`;
+  if (isStack) { const c = +$("scount").value; label = prepared ? `${verb}${prepared.length > 1 ? ` (${prepared.length})` : ""}` : `Prepare ${c} stack${c > 1 ? "s" : ""}`; }
   $("download").textContent = label;
   renderStrip();
 }
@@ -375,7 +447,7 @@ function updateUI() {
 function renderStrip() {
   const strip = $("strip");
   strip.textContent = "";
-  if (items.length < 2) return;
+  if (items.length < 2 || state().tool === "stack") return;
   items.forEach((it, i) => {
     const b = document.createElement("button");
     b.className = "thumb" + (i === cur ? " sel" : "");
@@ -403,7 +475,7 @@ function remove(i) {
 }
 
 async function addFiles(list) {
-  const files = [...list].filter(f => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
+  const files = [...list].filter(isImage);
   if (!files.length) { setStatus("Unsupported file type. Use JPG, PNG, WebP or HEIC."); return; }
   let bad = 0, done = 0;
   for (const file of files) {
@@ -420,6 +492,7 @@ async function addFiles(list) {
   setStatus(bad ? `${bad} file${bad > 1 ? "s" : ""} couldn't be read (browser can't decode that format).` : "");
   prepared = null; clearResult();
   if (!items.length) return;
+  if (!folderFiles.length) { deck = []; if (state().tool === "stack") picks = deal(); }
   cv.hidden = false; $("empty").hidden = true;
   if (cur < 0) await select(0); else { updateUI(); render(); }
 }
@@ -439,7 +512,21 @@ const resetOffsets = () => items.forEach(it => it.ox = it.oy = 0);
 ["scale", "outer", "gap", "radius", "fps", "blend"].forEach(id => $(id).oninput = changed);
 ["grid", "boom"].forEach(id => $(id).onchange = changed);
 $("ratio").onchange = () => { resetOffsets(); changed(); };
-document.querySelectorAll("input[name=color], input[name=fmt], input[name=afmt], input[name=tool]").forEach(r => r.onchange = changed);
+document.querySelectorAll("input[name=color], input[name=fmt], input[name=afmt], input[name=sdir]").forEach(r => r.onchange = changed);
+document.querySelectorAll("input[name=tool]").forEach(r => r.onchange = () => {
+  if (radio("tool") === "stack" && picks.length < 3) picks = deal();
+  changed();
+});
+$("scount").onchange = changed;
+$("shuffle").onclick = newStack;
+$("folder").onchange = () => {
+  folderFiles = [...$("folder").files].filter(isImage).sort((a, b) => a.name.localeCompare(b.name));
+  $("folder").value = "";
+  deck = [];
+  if (!folderFiles.length) setStatus("No images found in that folder.");
+  else setStatus("");
+  newStack();
+};
 document.querySelectorAll("input[name=mode]").forEach(r => r.onchange = () => { resetOffsets(); changed(); });
 $("reset").onclick = () => { $("scale").value = 100; resetOffsets(); changed(); };
 
@@ -513,6 +600,25 @@ async function buildCollages() {
     }
     const blob = await toBlob(c, type);
     out.push(new File([blob], `collage${pages > 1 ? "_" + (p + 1) : ""}.${s.fmt}`, { type }));
+  }
+  return out;
+}
+
+// Stack: the previewed stack first, then freshly dealt random stacks
+async function buildStacks() {
+  const s = state(), type = mime(s.fmt), g = collageGeom(s), n = +$("scount").value, out = [];
+  if (picks.length < 3) throw new Error("Choose a folder (or add photos) with at least 3 images.");
+  const c = document.createElement("canvas"), x = c.getContext("2d");
+  for (let i = 0; i < n; i++) {
+    const set = i === 0 ? picks : deal();
+    collageBegin(c, x, s);
+    for (let k = 0; k < 3; k++) {
+      setStatus(`Stack ${i + 1} of ${n} — photo ${k + 1} of 3…`);
+      const im = await loadImg(set[k]);
+      collageCell(x, s, g, k, im, 0.35); closeImg(im);
+    }
+    const blob = await toBlob(c, type);
+    out.push(new File([blob], `stack${n > 1 ? "_" + (i + 1) : ""}.${s.fmt}`, { type }));
   }
   return out;
 }
@@ -644,7 +750,7 @@ $("download").onclick = async () => {
     // everything else: first tap renders, second tap shares (iOS needs a fresh tap for the share sheet)
     if (!prepared) {
       btn.disabled = true;
-      const builder = { borders: buildBorders, collage: buildCollages, anim: buildAnim }[s.tool];
+      const builder = { borders: buildBorders, collage: buildCollages, anim: buildAnim, stack: buildStacks }[s.tool];
       prepared = await builder();
       showResult(prepared);
       setStatus(`${prepared.length} file${prepared.length > 1 ? "s" : ""} ready.`);
