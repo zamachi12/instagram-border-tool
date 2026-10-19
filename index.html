@@ -120,6 +120,7 @@
           <option value="4:3">4:3 — 1080 × 1080</option>
           <option value="16:9">16:9 — 1080 × 608</option>
           <option value="9:16" selected>9:16 — 1080 × 1350</option>
+          <option value="9:16s">9:16 Story — 1080 × 1920</option>
         </select>
         <div class="hint">Sizes follow the spec's Instagram presets (the "9:16" preset is Instagram's 4:5 portrait).</div>
       </div>
@@ -219,7 +220,7 @@
 </div>
 
 <script>
-const SIZES = { "4:3": [1080, 1080], "16:9": [1080, 608], "9:16": [1080, 1350] };
+const SIZES = { "4:3": [1080, 1080], "16:9": [1080, 608], "9:16": [1080, 1350], "9:16s": [1080, 1920] };
 const $ = id => document.getElementById(id);
 const cv = $("cv"), ctx = cv.getContext("2d");
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
